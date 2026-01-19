@@ -1,0 +1,500 @@
+diff --git a/multi_client_test.py b/multi_client_test.py
+new file mode 100644
+index 0000000..c785152
+--- /dev/null
++++ b/multi_client_test.py
+@@ -0,0 +1,117 @@
++#!/usr/bin/env python3
++"""
++Focused test for multi-client WebSocket functionality
++"""
++
++import asyncio
++import json
++import websockets
++from datetime import datetime
++
++WS_URL = "wss://proxichat-84.preview.emergentagent.com/api/ws"
++
++async def test_multi_client_detailed():
++    """Detailed test of multi-client functionality"""
++    print("🔍 Testing multi-client WebSocket functionality in detail...")
++    
++    # Connect first client
++    ws1 = await websockets.connect(WS_URL)
++    print("✅ Client 1 connected")
++    
++    # Complete handshake for client 1
++    config1 = await ws1.recv()
++    print(f"📨 Client 1 received CONFIG: {json.loads(config1)['type']}")
++    
++    hello1 = {
++        "type": "HELLO",
++        "payload": {
++            "userId": "detailed-user-1",
++            "deviceId": "detailed-device-1", 
++            "username": "DetailedUser1"
++        },
++        "timestamp": datetime.now().timestamp()
++    }
++    await ws1.send(json.dumps(hello1))
++    
++    hello_ack1 = await ws1.recv()
++    hello_ack1_data = json.loads(hello_ack1)
++    print(f"📨 Client 1 received HELLO_ACK: {hello_ack1_data['payload']['status']}")
++    
++    # Now connect second client
++    ws2 = await websockets.connect(WS_URL)
++    print("✅ Client 2 connected")
++    
++    # Complete handshake for client 2
++    config2 = await ws2.recv()
++    print(f"📨 Client 2 received CONFIG: {json.loads(config2)['type']}")
++    
++    hello2 = {
++        "type": "HELLO",
++        "payload": {
++            "userId": "detailed-user-2",
++            "deviceId": "detailed-device-2",
++            "username": "DetailedUser2"
++        },
++        "timestamp": datetime.now().timestamp()
++    }
++    await ws2.send(json.dumps(hello2))
++    
++    hello_ack2 = await ws2.recv()
++    hello_ack2_data = json.loads(hello_ack2)
++    print(f"📨 Client 2 received HELLO_ACK: {hello_ack2_data['payload']['status']}")
++    
++    # Check if client 1 receives CLIENTS broadcast when client 2 connects
++    print("🔍 Checking if Client 1 receives CLIENTS broadcast...")
++    try:
++        clients_msg = await asyncio.wait_for(ws1.recv(), timeout=5)
++        clients_data = json.loads(clients_msg)
++        if clients_data.get("type") == "CLIENTS":
++            clients = clients_data.get("payload", {}).get("clients", [])
++            print(f"✅ Client 1 received CLIENTS broadcast with {len(clients)} clients")
++            for client in clients:
++                print(f"   - {client['username']} ({client['id']})")
++        else:
++            print(f"❌ Client 1 received unexpected message: {clients_data.get('type')}")
++    except asyncio.TimeoutError:
++        print("❌ Client 1 did not receive CLIENTS broadcast within timeout")
++    
++    # Test message exchange
++    print("\n🔍 Testing message exchange between clients...")
++    
++    chat_id = "detailed-user-1-detailed-user-2"
++    message_msg = {
++        "type": "MESSAGE",
++        "payload": {
++            "id": "test-msg-123",
++            "chatId": chat_id,
++            "senderId": "detailed-user-1",
++            "content": "Hello from detailed test!",
++            "timestamp": datetime.now().timestamp(),
++            "participants": ["detailed-user-1", "detailed-user-2"]
++        },
++        "timestamp": datetime.now().timestamp()
++    }
++    
++    # Send from client 1
++    await ws1.send(json.dumps(message_msg))
++    print("📤 Client 1 sent message")
++    
++    # Check if client 2 receives it
++    try:
++        received_msg = await asyncio.wait_for(ws2.recv(), timeout=5)
++        received_data = json.loads(received_msg)
++        if received_data.get("type") == "MESSAGE":
++            content = received_data.get("payload", {}).get("content")
++            print(f"✅ Client 2 received message: '{content}'")
++        else:
++            print(f"❌ Client 2 received unexpected message: {received_data.get('type')}")
++    except asyncio.TimeoutError:
++        print("❌ Client 2 did not receive message within timeout")
++    
++    # Clean up
++    await ws1.close()
++    await ws2.close()
++    print("🧹 Connections closed")
++
++if __name__ == "__main__":
++    asyncio.run(test_multi_client_detailed())
+\ No newline at end of file
+diff --git a/persistence_test.py b/persistence_test.py
+new file mode 100644
+index 0000000..9c2b544
+--- /dev/null
++++ b/persistence_test.py
+@@ -0,0 +1,188 @@
++#!/usr/bin/env python3
++"""
++Test data persistence - send messages via WebSocket and retrieve via REST API
++"""
++
++import asyncio
++import json
++import websockets
++import requests
++import uuid
++from datetime import datetime
++
++BACKEND_URL = "https://proxichat-84.preview.emergentagent.com"
++WS_URL = "wss://proxichat-84.preview.emergentagent.com/api/ws"
++
++async def test_data_persistence():
++    """Test that messages sent via WebSocket are persisted and retrievable via REST API"""
++    print("🔍 Testing data persistence...")
++    
++    # Test data
++    user1_id = "persist-user-1"
++    user2_id = "persist-user-2"
++    chat_id = f"{user1_id}-{user2_id}"
++    test_message = f"Persistence test message {datetime.now().timestamp()}"
++    
++    # Connect and send a message via WebSocket
++    async with websockets.connect(WS_URL) as websocket:
++        # Complete handshake
++        await websocket.recv()  # CONFIG
++        
++        hello = {
++            "type": "HELLO",
++            "payload": {
++                "userId": user1_id,
++                "deviceId": "persist-device-1",
++                "username": "PersistUser1"
++            },
++            "timestamp": datetime.now().timestamp()
++        }
++        await websocket.send(json.dumps(hello))
++        await websocket.recv()  # HELLO_ACK
++        
++        # Send a message
++        message_msg = {
++            "type": "MESSAGE",
++            "payload": {
++                "id": str(uuid.uuid4()),
++                "chatId": chat_id,
++                "senderId": user1_id,
++                "content": test_message,
++                "timestamp": datetime.now().timestamp(),
++                "participants": [user1_id, user2_id]
++            },
++            "timestamp": datetime.now().timestamp()
++        }
++        
++        await websocket.send(json.dumps(message_msg))
++        print(f"📤 Sent message via WebSocket: '{test_message}'")
++    
++    # Wait a moment for persistence
++    await asyncio.sleep(1)
++    
++    # Retrieve messages via REST API
++    try:
++        response = requests.get(f"{BACKEND_URL}/api/chats/{chat_id}/messages", timeout=10)
++        if response.status_code == 200:
++            data = response.json()
++            messages = data.get("messages", [])
++            
++            # Check if our message is there
++            found_message = None
++            for msg in messages:
++                if msg.get("content") == test_message:
++                    found_message = msg
++                    break
++            
++            if found_message:
++                print(f"✅ Message persisted and retrieved successfully!")
++                print(f"   Content: {found_message['content']}")
++                print(f"   Sender: {found_message['senderId']}")
++                print(f"   Chat ID: {found_message['chatId']}")
++                return True
++            else:
++                print(f"❌ Message not found in retrieved messages")
++                print(f"   Retrieved {len(messages)} messages")
++                return False
++        else:
++            print(f"❌ Failed to retrieve messages: {response.status_code}")
++            return False
++    except Exception as e:
++        print(f"❌ Error retrieving messages: {str(e)}")
++        return False
++
++async def test_chat_creation():
++    """Test that chats are created when messages are sent"""
++    print("\n🔍 Testing chat creation...")
++    
++    user1_id = "chat-create-user-1"
++    user2_id = "chat-create-user-2"
++    chat_id = f"{user1_id}-{user2_id}"
++    
++    # Send a message to create a chat
++    async with websockets.connect(WS_URL) as websocket:
++        await websocket.recv()  # CONFIG
++        
++        hello = {
++            "type": "HELLO",
++            "payload": {
++                "userId": user1_id,
++                "deviceId": "chat-create-device-1",
++                "username": "ChatCreateUser1"
++            },
++            "timestamp": datetime.now().timestamp()
++        }
++        await websocket.send(json.dumps(hello))
++        await websocket.recv()  # HELLO_ACK
++        
++        message_msg = {
++            "type": "MESSAGE",
++            "payload": {
++                "id": str(uuid.uuid4()),
++                "chatId": chat_id,
++                "senderId": user1_id,
++                "content": "First message to create chat",
++                "timestamp": datetime.now().timestamp(),
++                "participants": [user1_id, user2_id]
++            },
++            "timestamp": datetime.now().timestamp()
++        }
++        
++        await websocket.send(json.dumps(message_msg))
++        print(f"📤 Sent message to create chat: {chat_id}")
++    
++    # Wait for persistence
++    await asyncio.sleep(1)
++    
++    # Check if chat appears in user's chat list
++    try:
++        response = requests.get(f"{BACKEND_URL}/api/chats?user_id={user1_id}", timeout=10)
++        if response.status_code == 200:
++            data = response.json()
++            chats = data.get("chats", [])
++            
++            # Look for our chat
++            found_chat = None
++            for chat in chats:
++                if chat.get("id") == chat_id:
++                    found_chat = chat
++                    break
++            
++            if found_chat:
++                print(f"✅ Chat created successfully!")
++                print(f"   Chat ID: {found_chat['id']}")
++                print(f"   Type: {found_chat['type']}")
++                print(f"   Participants: {found_chat['participants']}")
++                print(f"   Last Message: {found_chat.get('lastMessage', 'None')}")
++                return True
++            else:
++                print(f"❌ Chat not found in user's chat list")
++                print(f"   Found {len(chats)} chats for user")
++                return False
++        else:
++            print(f"❌ Failed to retrieve chats: {response.status_code}")
++            return False
++    except Exception as e:
++        print(f"❌ Error retrieving chats: {str(e)}")
++        return False
++
++async def main():
++    """Run persistence tests"""
++    print("🚀 Starting Data Persistence Tests")
++    
++    persistence_ok = await test_data_persistence()
++    chat_creation_ok = await test_chat_creation()
++    
++    print(f"\n📊 Results:")
++    print(f"   Message Persistence: {'✅ PASS' if persistence_ok else '❌ FAIL'}")
++    print(f"   Chat Creation: {'✅ PASS' if chat_creation_ok else '❌ FAIL'}")
++    
++    if persistence_ok and chat_creation_ok:
++        print("🎉 All persistence tests passed!")
++        return True
++    else:
++        print("❌ Some persistence tests failed!")
++        return False
++
++if __name__ == "__main__":
++    asyncio.run(main())
+\ No newline at end of file
+diff --git a/test_result.md b/test_result.md
+index 187cba4..0f302e8 100644
+--- a/test_result.md
++++ b/test_result.md
+@@ -100,4 +100,173 @@
+ 
+ #====================================================================================================
+ # Testing Data - Main Agent and testing sub agent both should log testing data below this section
+-#====================================================================================================
+\ No newline at end of file
++#====================================================================================================
++
++user_problem_statement: "Test complet du backend Nearu : Application de chat local LAN avec WebSocket"
++
++backend:
++  - task: "REST API Health Check"
++    implemented: true
++    working: true
++    file: "/app/backend/server.py"
++    stuck_count: 0
++    priority: "high"
++    needs_retesting: false
++    status_history:
++      - working: true
++        agent: "testing"
++        comment: "GET /api/ endpoint working correctly, returns proper JSON with message and version fields"
++
++  - task: "REST API Probe Endpoint"
++    implemented: true
++    working: true
++    file: "/app/backend/server.py"
++    stuck_count: 0
++    priority: "high"
++    needs_retesting: false
++    status_history:
++      - working: true
++        agent: "testing"
++        comment: "GET /api/probe endpoint working correctly, returns service discovery information with all required fields"
++
++  - task: "WebSocket Connection and Handshake"
++    implemented: true
++    working: true
++    file: "/app/backend/server.py"
++    stuck_count: 0
++    priority: "high"
++    needs_retesting: false
++    status_history:
++      - working: true
++        agent: "testing"
++        comment: "WebSocket handshake protocol working correctly: CONFIG → HELLO → HELLO_ACK sequence completed successfully"
++
++  - task: "WebSocket Message Sending"
++    implemented: true
++    working: true
++    file: "/app/backend/server.py"
++    stuck_count: 0
++    priority: "high"
++    needs_retesting: false
++    status_history:
++      - working: true
++        agent: "testing"
++        comment: "WebSocket MESSAGE type handling working correctly, messages can be sent and received"
++
++  - task: "WebSocket Multi-Client Support"
++    implemented: true
++    working: true
++    file: "/app/backend/server.py"
++    stuck_count: 0
++    priority: "high"
++    needs_retesting: false
++    status_history:
++      - working: true
++        agent: "testing"
++        comment: "Multi-client WebSocket functionality working correctly: CLIENTS broadcast on new connections, message broadcasting between clients working"
++
++  - task: "WebSocket REQUEST_CLIENTS"
++    implemented: true
++    working: true
++    file: "/app/backend/server.py"
++    stuck_count: 0
++    priority: "medium"
++    needs_retesting: false
++    status_history:
++      - working: true
++        agent: "testing"
++        comment: "REQUEST_CLIENTS message type working correctly, returns list of connected clients"
++
++  - task: "WebSocket Edge Case Handling"
++    implemented: true
++    working: true
++    file: "/app/backend/server.py"
++    stuck_count: 0
++    priority: "medium"
++    needs_retesting: false
++    status_history:
++      - working: true
++        agent: "testing"
++        comment: "Edge case handling working correctly: connections without HELLO are rejected with code 1008, malformed HELLO messages are rejected properly"
++
++  - task: "WebSocket Reconnection"
++    implemented: true
++    working: true
++    file: "/app/backend/server.py"
++    stuck_count: 0
++    priority: "medium"
++    needs_retesting: false
++    status_history:
++      - working: true
++        agent: "testing"
++        comment: "WebSocket reconnection with same user working correctly"
++
++  - task: "REST API Chat Retrieval"
++    implemented: true
++    working: false
++    file: "/app/backend/server.py"
++    stuck_count: 1
++    priority: "high"
++    needs_retesting: false
++    status_history:
++      - working: false
++        agent: "testing"
++        comment: "CRITICAL: GET /api/chats endpoint returns 520 error due to MongoDB ObjectId serialization issue. Error: 'ObjectId' object is not iterable. This prevents chat data retrieval."
++
++  - task: "REST API Message Retrieval"
++    implemented: true
++    working: false
++    file: "/app/backend/server.py"
++    stuck_count: 1
++    priority: "high"
++    needs_retesting: false
++    status_history:
++      - working: false
++        agent: "testing"
++        comment: "CRITICAL: GET /api/chats/{chat_id}/messages endpoint returns 520 error due to MongoDB ObjectId serialization issue. Error: 'ObjectId' object is not iterable. This prevents message data retrieval."
++
++  - task: "Data Persistence (WebSocket to Database)"
++    implemented: true
++    working: false
++    file: "/app/backend/server.py"
++    stuck_count: 1
++    priority: "high"
++    needs_retesting: false
++    status_history:
++      - working: false
++        agent: "testing"
++        comment: "CRITICAL: Messages sent via WebSocket cannot be retrieved via REST API due to MongoDB ObjectId serialization issue. Data may be persisted but not retrievable."
++
++frontend:
++  - task: "Frontend Testing"
++    implemented: "NA"
++    working: "NA"
++    file: "NA"
++    stuck_count: 0
++    priority: "low"
++    needs_retesting: false
++    status_history:
++      - working: "NA"
++        agent: "testing"
++        comment: "Frontend testing not performed as per testing agent instructions - only backend testing conducted"
++
++metadata:
++  created_by: "testing_agent"
++  version: "1.0"
++  test_sequence: 1
++  run_ui: false
++
++test_plan:
++  current_focus:
++    - "MongoDB ObjectId Serialization Fix"
++    - "REST API Data Retrieval"
++  stuck_tasks:
++    - "REST API Chat Retrieval"
++    - "REST API Message Retrieval"
++    - "Data Persistence (WebSocket to Database)"
++  test_all: false
++  test_priority: "high_first"
++
++agent_communication:
++  - agent: "testing"
++    message: "Backend WebSocket functionality is working excellently - all real-time features including handshake, messaging, multi-client support, and edge cases are functioning correctly. However, there is a CRITICAL MongoDB ObjectId serialization issue preventing REST API endpoints from returning data. The backend uses MongoDB ObjectId which is not JSON serializable by default in FastAPI. This affects GET /api/chats and GET /api/chats/{chat_id}/messages endpoints, causing 520 errors. Messages may be stored in database but cannot be retrieved via REST API. This needs immediate attention to fix the ObjectId serialization issue."
+\ No newline at end of file
