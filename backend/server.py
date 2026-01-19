@@ -303,6 +303,11 @@ async def get_chats(user_id: str):
         {"participants": user_id}
     ).sort("updatedAt", -1).to_list(100)
     
+    # Convert MongoDB documents to JSON-serializable format
+    for chat in chats:
+        if "_id" in chat:
+            chat["_id"] = str(chat["_id"])
+    
     return {"chats": chats}
 
 
@@ -315,6 +320,11 @@ async def get_messages(chat_id: str, limit: int = 50):
     
     # Reverse to show oldest first
     messages.reverse()
+    
+    # Convert MongoDB documents to JSON-serializable format
+    for message in messages:
+        if "_id" in message:
+            message["_id"] = str(message["_id"])
     
     return {"messages": messages}
 
