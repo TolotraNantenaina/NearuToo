@@ -8,9 +8,6 @@
     "scheme": "nearu",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "extra": {
-      "EXPO_PUBLIC_BACKEND_URL": process.env.EXPO_PUBLIC_BACKEND_URL
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nearu.app",
