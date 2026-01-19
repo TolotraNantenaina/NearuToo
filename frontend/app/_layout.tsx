@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useAuthStore } from '../src/stores/useAuthStore';
+import { initDatabase } from '../src/database/sqlite';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -12,11 +13,7 @@ export default function RootLayout() {
   useEffect(() => {
     const init = async () => {
       try {
-        // Only initialize database on native platforms
-        if (Platform.OS !== 'web') {
-          const { initDatabase } = await import('../src/database/sqlite');
-          await initDatabase();
-        }
+        await initDatabase();
         await initialize();
       } catch (error) {
         console.error('Initialization error:', error);
