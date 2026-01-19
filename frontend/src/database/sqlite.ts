@@ -1,8 +1,13 @@
-import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
 import { Message, Chat } from '../stores/useChatStore';
 
-let db: SQLite.SQLiteDatabase | null = null;
+// Only import SQLite on native platforms
+let SQLite: any = null;
+if (Platform.OS !== 'web') {
+  SQLite = require('expo-sqlite');
+}
+
+let db: any = null;
 let dbVersion = 0;
 
 // In-memory fallback for web
