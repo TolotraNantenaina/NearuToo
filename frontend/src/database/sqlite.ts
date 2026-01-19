@@ -1,12 +1,6 @@
 import { Platform } from 'react-native';
 import { Message, Chat } from '../stores/useChatStore';
 
-// Only import SQLite on native platforms
-let SQLite: any = null;
-if (Platform.OS !== 'web') {
-  SQLite = require('expo-sqlite');
-}
-
 let db: any = null;
 let dbVersion = 0;
 
@@ -23,6 +17,18 @@ let memoryStore: {
 
 const isWeb = Platform.OS === 'web';
 
+// Lazy load SQLite only on native platforms
+const getSQLite = async () => {
+  if (isWeb) return null;
+  try {
+    const SQLite = await import('expo-sqlite');
+    return SQLite;
+  } catch (error) {
+    console.error('Failed to load SQLite:', error);
+    return null;
+  }
+};
+
 // Initialize database
 export const initDatabase = async (): Promise<void> => {
   if (isWeb) {
@@ -31,6 +37,12 @@ export const initDatabase = async (): Promise<void> => {
   }
 
   try {
+    const SQLite = await getSQLite();
+    if (!SQLite) {
+      console.warn('SQLite not available, using in-memory storage');
+      return;
+    }
+    
     db = await SQLite.openDatabaseAsync('nearu.db');
     
     // Create tables
