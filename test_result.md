@@ -101,3 +101,172 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Test complet du backend Nearu : Application de chat local LAN avec WebSocket"
+
+backend:
+  - task: "REST API Health Check"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/ endpoint working correctly, returns proper JSON with message and version fields"
+
+  - task: "REST API Probe Endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/probe endpoint working correctly, returns service discovery information with all required fields"
+
+  - task: "WebSocket Connection and Handshake"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "WebSocket handshake protocol working correctly: CONFIG → HELLO → HELLO_ACK sequence completed successfully"
+
+  - task: "WebSocket Message Sending"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "WebSocket MESSAGE type handling working correctly, messages can be sent and received"
+
+  - task: "WebSocket Multi-Client Support"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Multi-client WebSocket functionality working correctly: CLIENTS broadcast on new connections, message broadcasting between clients working"
+
+  - task: "WebSocket REQUEST_CLIENTS"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "REQUEST_CLIENTS message type working correctly, returns list of connected clients"
+
+  - task: "WebSocket Edge Case Handling"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Edge case handling working correctly: connections without HELLO are rejected with code 1008, malformed HELLO messages are rejected properly"
+
+  - task: "WebSocket Reconnection"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "WebSocket reconnection with same user working correctly"
+
+  - task: "REST API Chat Retrieval"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "CRITICAL: GET /api/chats endpoint returns 520 error due to MongoDB ObjectId serialization issue. Error: 'ObjectId' object is not iterable. This prevents chat data retrieval."
+
+  - task: "REST API Message Retrieval"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "CRITICAL: GET /api/chats/{chat_id}/messages endpoint returns 520 error due to MongoDB ObjectId serialization issue. Error: 'ObjectId' object is not iterable. This prevents message data retrieval."
+
+  - task: "Data Persistence (WebSocket to Database)"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "CRITICAL: Messages sent via WebSocket cannot be retrieved via REST API due to MongoDB ObjectId serialization issue. Data may be persisted but not retrievable."
+
+frontend:
+  - task: "Frontend Testing"
+    implemented: "NA"
+    working: "NA"
+    file: "NA"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Frontend testing not performed as per testing agent instructions - only backend testing conducted"
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "MongoDB ObjectId Serialization Fix"
+    - "REST API Data Retrieval"
+  stuck_tasks:
+    - "REST API Chat Retrieval"
+    - "REST API Message Retrieval"
+    - "Data Persistence (WebSocket to Database)"
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "testing"
+    message: "Backend WebSocket functionality is working excellently - all real-time features including handshake, messaging, multi-client support, and edge cases are functioning correctly. However, there is a CRITICAL MongoDB ObjectId serialization issue preventing REST API endpoints from returning data. The backend uses MongoDB ObjectId which is not JSON serializable by default in FastAPI. This affects GET /api/chats and GET /api/chats/{chat_id}/messages endpoints, causing 520 errors. Messages may be stored in database but cannot be retrieved via REST API. This needs immediate attention to fix the ObjectId serialization issue."
